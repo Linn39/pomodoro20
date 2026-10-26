@@ -184,7 +184,7 @@ final class WatchReminderController: ObservableObject {
             refreshDelay = 6 * 60 * 60
         }
         // Opportunistically replenish the finite notification queue. watchOS may defer this task.
-        WKExtension.shared().scheduleBackgroundRefresh(
+        WKApplication.shared().scheduleBackgroundRefresh(
             withPreferredDate: date.addingTimeInterval(refreshDelay),
             userInfo: "replenishReminders" as NSString) { [weak self] error in
                 if error != nil {

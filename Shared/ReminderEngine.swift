@@ -1,6 +1,8 @@
 import Foundation
 
 struct ReminderEngine {
+    static let promptLifetime: TimeInterval = 5 * 60
+
     var settings: AppSettings
     private(set) var state: ReminderState
 
@@ -36,7 +38,7 @@ struct ReminderEngine {
             switch state.phase {
             case .inactive: return events
             case .working(let due), .waitingForRetry(let due), .snoozed(let due): deadline = due
-            case .prompted(let due, _): deadline = due.addingTimeInterval(60)
+            case .prompted(let due, _): deadline = due.addingTimeInterval(Self.promptLifetime)
             case .breaking(let end): deadline = end
             }
             guard deadline <= now, deadline < window.end else { break }
@@ -47,10 +49,10 @@ struct ReminderEngine {
                 state.phase = .prompted(due: due, retry: retry)
                 events.append(ReminderEvent(kind: .reminder, date: due))
             case .prompted(let due, let retry):
-                let expiration = due.addingTimeInterval(60)
+                let expiration = due.addingTimeInterval(Self.promptLifetime)
                 events.append(ReminderEvent(kind: .promptExpired, date: expiration))
                 if retry == 0 {
-                    state.phase = .waitingForRetry(due: due.addingTimeInterval(5 * 60))
+                    state.phase = .waitingForRetry(due: expiration)
                 } else {
                     state.phase = .working(due: expiration.addingTimeInterval(20 * 60))
                 }
@@ -69,7 +71,7 @@ struct ReminderEngine {
         advance(to: now, calendar: calendar)
         guard case .prompted(let due, _) = state.phase,
               state.window?.contains(now) == true,
-              now < due.addingTimeInterval(60),
+              now < due.addingTimeInterval(Self.promptLifetime),
               forPromptDue == nil || forPromptDue == due else { return false }
         state.phase = .breaking(end: now.addingTimeInterval(20))
         return true
@@ -80,7 +82,7 @@ struct ReminderEngine {
         advance(to: now, calendar: calendar)
         guard case .prompted(let due, _) = state.phase,
               state.window?.contains(now) == true,
-              now < due.addingTimeInterval(60),
+              now < due.addingTimeInterval(Self.promptLifetime),
               forPromptDue == nil || forPromptDue == due else { return false }
         state.phase = .snoozed(due: now.addingTimeInterval(TimeInterval(settings.snoozeMinutes * 60)))
         return true
@@ -101,7 +103,7 @@ struct ReminderEngine {
                 switch copy.state.phase {
                 case .inactive: deadline = window.end
                 case .working(let due), .waitingForRetry(let due), .snoozed(let due): deadline = due
-                case .prompted(let due, _): deadline = due.addingTimeInterval(60)
+                case .prompted(let due, _): deadline = due.addingTimeInterval(Self.promptLifetime)
                 case .breaking(let end): deadline = end
                 }
                 next = min(deadline, window.end)

@@ -139,7 +139,7 @@ final class WatchReminderController: ObservableObject {
         switch state.phase {
         case .inactive: return nil
         case .working(let due), .waitingForRetry(let due), .snoozed(let due): return min(due, state.window?.end ?? due)
-        case .prompted(let due, _): return min(due.addingTimeInterval(60), state.window?.end ?? due)
+        case .prompted(let due, _): return min(due.addingTimeInterval(ReminderEngine.promptLifetime), state.window?.end ?? due)
         case .breaking(let end): return min(end, state.window?.end ?? end)
         }
     }
@@ -193,13 +193,24 @@ final class WatchReminderController: ObservableObject {
         deliveryIssue = nil
         let horizon = date.addingTimeInterval(7 * 24 * 60 * 60)
         let events = engine.projectedEvents(from: date, through: horizon)
-        let lastQueued = delivery.schedule(events: events, settings: engine.settings, after: date)
-        let refreshDelay: TimeInterval
+        let activeReminderDue: Date?
+        if case .prompted(let due, _) = engine.state.phase {
+            activeReminderDue = due
+        } else {
+            activeReminderDue = nil
+        }
+        let lastQueued = delivery.schedule(events: events, settings: engine.settings, after: date,
+                                           activeReminderDue: activeReminderDue)
+        var refreshDelay: TimeInterval
         if let lastQueued {
             let halfCoverage = lastQueued.timeIntervalSince(date) / 2
             refreshDelay = min(6 * 60 * 60, max(15 * 60, halfCoverage))
         } else {
             refreshDelay = 6 * 60 * 60
+        }
+        if let nextReminderDue = activeReminderDue ?? events.first(where: { $0.kind == .reminder })?.date {
+            let expiry = nextReminderDue.addingTimeInterval(ReminderEngine.promptLifetime)
+            refreshDelay = min(refreshDelay, max(1, expiry.timeIntervalSince(date)))
         }
         // Opportunistically replenish the finite notification queue. watchOS may defer this task.
         WKApplication.shared().scheduleBackgroundRefresh(

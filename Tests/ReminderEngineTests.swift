@@ -19,10 +19,26 @@ final class ReminderEngineTests: XCTestCase {
 
     func testIgnoredPromptRetriesThenRestartsTwentyMinuteCycle() {
         var subject = engine()
-        let events = subject.advance(to: date(9, 26), calendar: calendar)
+        let events = subject.advance(to: date(9, 30), calendar: calendar)
         XCTAssertEqual(events.filter { $0.kind == .reminder }.map(\.date), [date(9, 20), date(9, 25)])
-        XCTAssertEqual(events.filter { $0.kind == .promptExpired }.map(\.date), [date(9, 21), date(9, 26)])
-        XCTAssertEqual(subject.state.phase, .working(due: date(9, 46)))
+        XCTAssertEqual(events.filter { $0.kind == .promptExpired }.map(\.date), [date(9, 25), date(9, 30)])
+        XCTAssertEqual(subject.state.phase, .working(due: date(9, 50)))
+    }
+
+    func testRetryStartsWhenFirstReminderExpiresAndOldActionIsRejected() {
+        var subject = engine()
+        let projected = subject.projectedEvents(from: date(9, 19, 59), through: date(9, 25), calendar: calendar)
+        XCTAssertEqual(projected.filter { $0.kind == .reminder }.map(\.date), [date(9, 20), date(9, 25)])
+
+        subject.advance(to: date(9, 24, 59), calendar: calendar)
+        XCTAssertEqual(subject.state.phase, .prompted(due: date(9, 20), retry: 0))
+
+        let events = subject.advance(to: date(9, 25), calendar: calendar)
+        XCTAssertEqual(events, [ReminderEvent(kind: .promptExpired, date: date(9, 25)),
+                                ReminderEvent(kind: .reminder, date: date(9, 25))])
+        XCTAssertEqual(subject.state.phase, .prompted(due: date(9, 25), retry: 1))
+        XCTAssertFalse(subject.startBreak(at: date(9, 25), forPromptDue: date(9, 20), calendar: calendar))
+        XCTAssertTrue(subject.startBreak(at: date(9, 25), forPromptDue: date(9, 25), calendar: calendar))
     }
 
     func testSnoozeUsesTapTimeAndRejectsExpiredAction() {

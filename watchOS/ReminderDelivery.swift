@@ -47,7 +47,8 @@ final class ReminderDelivery: NSObject, UNUserNotificationCenterDelegate {
     }
 
     @discardableResult
-    func schedule(events: [ReminderEvent], settings: AppSettings?, after now: Date) -> Date? {
+    func schedule(events: [ReminderEvent], settings: AppSettings?, after now: Date,
+                  activeReminderDue: Date? = nil) -> Date? {
         scheduleRevision += 1
         let revision = scheduleRevision
         let boundaries = settings.map(boundaryRequests(for:)) ?? []
@@ -55,6 +56,20 @@ final class ReminderDelivery: NSObject, UNUserNotificationCenterDelegate {
             $0.date > now && ($0.kind == .reminder || $0.kind == .breakEnded)
         }.prefix(max(0, 60 - boundaries.count)))
         let center = UNUserNotificationCenter.current()
+        center.getDeliveredNotifications { [weak self] notifications in
+            DispatchQueue.main.async {
+                guard let self, self.scheduleRevision == revision else { return }
+                let obsolete = notifications.filter { notification in
+                    let request = notification.request
+                    guard request.identifier.hasPrefix(Identifier.prefix),
+                          request.content.categoryIdentifier == Identifier.reminderCategory else { return false }
+                    guard let due = request.content.userInfo[Identifier.promptDue] as? TimeInterval else { return true }
+                    return due + ReminderEngine.promptLifetime <= Date().timeIntervalSince1970
+                        || due != activeReminderDue?.timeIntervalSince1970
+                }.map { $0.request.identifier }
+                center.removeDeliveredNotifications(withIdentifiers: obsolete)
+            }
+        }
         center.getPendingNotificationRequests { [weak self] requests in
             DispatchQueue.main.async {
                 guard let self, self.scheduleRevision == revision else { return }
@@ -128,6 +143,9 @@ final class ReminderDelivery: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
+        if response.notification.request.content.categoryIdentifier == Identifier.reminderCategory {
+            center.removeDeliveredNotifications(withIdentifiers: [response.notification.request.identifier])
+        }
         guard let due = response.notification.request.content.userInfo[Identifier.promptDue] as? TimeInterval else {
             onDelivered?()
             completionHandler()

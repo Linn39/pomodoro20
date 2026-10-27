@@ -11,10 +11,12 @@ final class ReminderDelivery: NSObject, UNUserNotificationCenterDelegate {
         static let snooze = "snooze"
         static let promptDue = "promptDue"
         static let kind = "kind"
+        static let breakEndDate = "breakEndDate"
     }
 
     var onAction: ((WatchReminderAction, Date, @escaping () -> Void) -> Void)?
     var onDelivered: (() -> Void)?
+    var onForegroundBreakEnded: ((Date) -> Void)?
     var onAuthorizationStatus: ((UNAuthorizationStatus) -> Void)?
     var onSchedulingError: (() -> Void)?
     private var scheduleRevision = 0
@@ -110,10 +112,14 @@ final class ReminderDelivery: NSObject, UNUserNotificationCenterDelegate {
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         onDelivered?()
-        // The visible countdown supplies the foreground break-end haptic. Avoid a
-        // second alert when the same local notification arrives simultaneously.
         if notification.request.content.userInfo[Identifier.kind] as? String == "breakEnded" {
-            completionHandler([])
+            if WKApplication.shared().applicationState == .active,
+               let timestamp = notification.request.content.userInfo[Identifier.breakEndDate] as? TimeInterval {
+                onForegroundBreakEnded?(Date(timeIntervalSince1970: timestamp))
+                completionHandler([])
+            } else {
+                completionHandler([.banner, .sound])
+            }
         } else {
             completionHandler([.banner, .sound])
         }
@@ -158,7 +164,8 @@ final class ReminderDelivery: NSObject, UNUserNotificationCenterDelegate {
         case .breakEnded:
             content.title = "Break complete"
             content.body = "You can return to what you were doing."
-            content.userInfo = [Identifier.kind: "breakEnded"]
+            content.userInfo = [Identifier.kind: "breakEnded",
+                                Identifier.breakEndDate: event.date.timeIntervalSince1970]
         case .promptExpired:
             break
         }

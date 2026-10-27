@@ -54,6 +54,7 @@ final class WatchReminderController: ObservableObject {
     private let sync = WatchSync()
     private var engine: ReminderEngine?
     private var started = false
+    private var lastHapticBreakEnd: Date?
 
     init() {
         if let settings = SettingsStore.load() {
@@ -82,6 +83,9 @@ final class WatchReminderController: ObservableObject {
         }
         delivery.onDelivered = { [weak self] in
             DispatchQueue.main.async { self?.refresh() }
+        }
+        delivery.onForegroundBreakEnded = { [weak self] end in
+            DispatchQueue.main.async { self?.playBreakEndHaptic(for: end) }
         }
         delivery.onAuthorizationStatus = { [weak self] status in
             DispatchQueue.main.async {
@@ -115,8 +119,8 @@ final class WatchReminderController: ObservableObject {
         state = engine.state
         saveState()
 
-        if events.contains(where: { $0.kind == .breakEnded && date.timeIntervalSince($0.date) < 2 }) {
-            WKInterfaceDevice.current().play(.success)
+        for event in events where event.kind == .breakEnded && date.timeIntervalSince(event.date) < 2 {
+            playBreakEndHaptic(for: event.date)
         }
         scheduleProjectedEvents(after: date)
     }
@@ -175,6 +179,13 @@ final class WatchReminderController: ObservableObject {
     private func saveState() {
         guard let engine, let data = try? JSONEncoder().encode(engine.state) else { return }
         UserDefaults.standard.set(data, forKey: Self.stateKey)
+    }
+
+    private func playBreakEndHaptic(for end: Date) {
+        guard WKApplication.shared().applicationState == .active,
+              lastHapticBreakEnd != end else { return }
+        lastHapticBreakEnd = end
+        WKInterfaceDevice.current().play(.success)
     }
 
     private func scheduleProjectedEvents(after date: Date) {

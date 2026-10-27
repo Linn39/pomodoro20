@@ -97,7 +97,7 @@ enum Schedule {
             }
         }
         windows.sort { $0.start < $1.start }
-        for index in 1..<windows.count where windows[index].start < windows[index - 1].end {
+        for index in windows.indices.dropFirst() where windows[index].start < windows[index - 1].end {
             let earlier = windows[index - 1]
             let later = windows[index]
             let error = ScheduleValidationError.overlappingPlans(earlier.planID, later.planID)

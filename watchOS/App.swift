@@ -4,14 +4,9 @@ import WatchKit
 
 @main
 struct promodoro20WatchApp: App {
+    @WKApplicationDelegateAdaptor(WatchAppDelegate.self) private var appDelegate
     @StateObject private var controller = WatchReminderController.shared
     @Environment(\.scenePhase) private var scenePhase
-
-    init() {
-        // Register the notification delegate before a background notification
-        // action can be delivered, even if no interface has appeared yet.
-        _ = WatchReminderController.shared
-    }
 
     var body: some Scene {
         WindowGroup {
@@ -24,8 +19,21 @@ struct promodoro20WatchApp: App {
                     controller.refresh()
                 }
         }
-        .backgroundTask(.appRefresh("replenishReminders")) {
-            await MainActor.run { controller.refresh() }
+    }
+}
+
+@MainActor
+final class WatchAppDelegate: NSObject, WKApplicationDelegate {
+    func applicationDidFinishLaunching() {
+        WatchReminderController.shared.start()
+    }
+
+    func handle(_ backgroundTasks: Set<WKRefreshBackgroundTask>) {
+        for task in backgroundTasks {
+            if task is WKApplicationRefreshBackgroundTask {
+                WatchReminderController.shared.refresh()
+            }
+            task.setTaskCompletedWithSnapshot(false)
         }
     }
 }
@@ -61,7 +69,6 @@ final class WatchReminderController: ObservableObject {
             hasSettings = true
             snoozeMinutes = settings.snoozeMinutes
         }
-        start()
     }
 
     func start() {

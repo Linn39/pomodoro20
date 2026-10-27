@@ -36,6 +36,12 @@ final class ScheduleTests: XCTestCase {
         XCTAssertTrue(Schedule.validationErrors(for: [first, adjacent, disabled], calendar: calendar).isEmpty)
     }
 
+    func testNoEnabledWindowsAreValid() {
+        let disabled = SchedulePlan(weekdays: [2], startMinutes: 9 * 60, endMinutes: 12 * 60, isEnabled: false)
+        XCTAssertTrue(Schedule.validationErrors(for: [], calendar: calendar).isEmpty)
+        XCTAssertTrue(Schedule.validationErrors(for: [disabled], calendar: calendar).isEmpty)
+    }
+
     func testNextWindowUsesCurrentTimeZoneAndDST() {
         let sunday = SchedulePlan(weekdays: [1], startMinutes: 2 * 60 + 30, endMinutes: 4 * 60)
         let beforeTransition = date(2026, 3, 28, 23)

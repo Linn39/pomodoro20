@@ -77,4 +77,30 @@ final class ReminderEngineTests: XCTestCase {
         let events = subject.projectedEvents(from: date(9, 20, 50), through: date(9, 22), calendar: calendar)
         XCTAssertEqual(events.map(\.kind), [.windowEnded])
     }
+
+    func testCustomWorkIntervalAndBreakDurationApplyToNextCycle() {
+        let plan = SchedulePlan(weekdays: [2], startMinutes: 9 * 60, endMinutes: 12 * 60)
+        var subject = ReminderEngine(settings: AppSettings(plans: [plan],
+                                                         workIntervalMinutes: 12,
+                                                         breakDurationSeconds: 45))
+        subject.advance(to: date(9, 12), calendar: calendar)
+        XCTAssertEqual(subject.state.phase, .prompted(due: date(9, 12), retry: 0))
+        XCTAssertTrue(subject.startBreak(at: date(9, 12, 10), calendar: calendar))
+        XCTAssertEqual(subject.state.phase, .breaking(end: date(9, 12, 55)))
+        subject.advance(to: date(9, 12, 55), calendar: calendar)
+        XCTAssertEqual(subject.state.phase, .working(due: date(9, 24, 55)))
+    }
+
+    func testLegacySettingsDecodeWithTimingDefaults() throws {
+        let legacy = Data(#"{"plans":[],"snoozeMinutes":60}"#.utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: legacy)
+        XCTAssertEqual(settings.workIntervalMinutes, 20)
+        XCTAssertEqual(settings.breakDurationSeconds, 20)
+        XCTAssertTrue(settings.validationErrors(calendar: calendar).isEmpty)
+    }
+
+    func testInvalidTimingSettingsAreRejected() {
+        let settings = AppSettings(workIntervalMinutes: 0, breakDurationSeconds: 301)
+        XCTAssertEqual(settings.validationErrors(calendar: calendar), [.invalidWorkInterval, .invalidBreakDuration])
+    }
 }

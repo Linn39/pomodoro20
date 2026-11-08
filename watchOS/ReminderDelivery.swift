@@ -80,7 +80,8 @@ final class ReminderDelivery: NSObject, UNUserNotificationCenterDelegate {
                 // even when watchOS delays a background refresh.
                 for request in boundaries.prefix(60) { self.add(request, to: center) }
                 for (index, event) in transient.enumerated() {
-                    let content = self.content(for: event)
+                    guard let settings else { continue }
+                    let content = self.content(for: event, settings: settings)
                     let trigger = UNTimeIntervalNotificationTrigger(
                         timeInterval: max(1, event.date.timeIntervalSinceNow), repeats: false)
                     let request = UNNotificationRequest(identifier: "\(Identifier.prefix)\(index)",
@@ -113,7 +114,7 @@ final class ReminderDelivery: NSObject, UNUserNotificationCenterDelegate {
                     (ReminderEvent.Kind.windowStarted, start, "start"),
                     (ReminderEvent.Kind.windowEnded, end, "end")
                 ] {
-                    let content = content(for: ReminderEvent(kind: kind, date: Date()))
+                    let content = content(for: ReminderEvent(kind: kind, date: Date()), settings: settings)
                     let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
                     let id = "\(Identifier.prefix)boundary.\(plan.id).\(weekday).\(label)"
                     requests.append(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
@@ -164,19 +165,19 @@ final class ReminderDelivery: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    private func content(for event: ReminderEvent) -> UNMutableNotificationContent {
+    private func content(for event: ReminderEvent, settings: AppSettings) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.sound = .default
         switch event.kind {
         case .windowStarted:
             content.title = "promodoro20 is on"
-            content.body = "Your next break reminder is in 20 minutes."
+            content.body = "Your next break reminder is in \(settings.workIntervalMinutes) \(settings.workIntervalMinutes == 1 ? "minute" : "minutes")."
         case .windowEnded:
             content.title = "promodoro20 is off"
             content.body = "This plan's active window has ended."
         case .reminder:
             content.title = "Look into the distance"
-            content.body = "Take a 20-second break."
+            content.body = "Take a \(settings.breakDurationSeconds)-second break."
             content.categoryIdentifier = Identifier.reminderCategory
             content.userInfo = [Identifier.promptDue: event.date.timeIntervalSince1970]
         case .breakEnded:

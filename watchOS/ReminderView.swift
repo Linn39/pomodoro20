@@ -70,7 +70,7 @@ struct ReminderView: View {
         case .prompted:
             Text("Time for a break")
                 .font(.title3.bold())
-            Text("Look at something far away for 20 seconds.")
+            Text("Look at something far away for \(controller.breakDurationSeconds) \(controller.breakDurationSeconds == 1 ? "second" : "seconds").")
                 .font(.footnote)
                 .multilineTextAlignment(.center)
             Button("Start Break") { controller.startBreak() }

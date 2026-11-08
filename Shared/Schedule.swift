@@ -32,6 +32,8 @@ enum ScheduleValidationError: LocalizedError, Equatable {
     case duplicatePlanID(UUID)
     case overlappingPlans(UUID, UUID)
     case invalidSnoozeDuration
+    case invalidWorkInterval
+    case invalidBreakDuration
 
     var errorDescription: String? {
         switch self {
@@ -41,6 +43,8 @@ enum ScheduleValidationError: LocalizedError, Equatable {
         case .duplicatePlanID: "Two plans have the same identifier."
         case .overlappingPlans: "Enabled plans cannot have overlapping time windows."
         case .invalidSnoozeDuration: "Choose a snooze duration of 15, 30, 60, or 120 minutes."
+        case .invalidWorkInterval: "Choose a work interval from 1 to 180 minutes."
+        case .invalidBreakDuration: "Choose a break duration from 1 to 300 seconds."
         }
     }
 }

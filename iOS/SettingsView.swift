@@ -45,10 +45,7 @@ final class PhoneSettingsModel: ObservableObject {
     let sync = PhoneWatchSync()
 
     init() {
-        settings = SettingsStore.load() ?? AppSettings(
-            plans: [],
-            snoozeMinutes: AppSettings.defaultSnoozeMinutes
-        )
+        settings = SettingsStore.load() ?? AppSettings()
         sync.publish(settings)
     }
 
@@ -95,6 +92,18 @@ final class PhoneSettingsModel: ObservableObject {
     func setSnoozeMinutes(_ minutes: Int) {
         var proposed = settings
         proposed.snoozeMinutes = minutes
+        _ = save(proposed)
+    }
+
+    func setWorkIntervalMinutes(_ minutes: Int) {
+        var proposed = settings
+        proposed.workIntervalMinutes = minutes
+        _ = save(proposed)
+    }
+
+    func setBreakDurationSeconds(_ seconds: Int) {
+        var proposed = settings
+        proposed.breakDurationSeconds = seconds
         _ = save(proposed)
     }
 }
@@ -146,6 +155,14 @@ struct SettingsView: View {
                 }
 
                 Section("Reminders") {
+                    Stepper("Work interval: \(model.settings.workIntervalMinutes) min", value: Binding(
+                        get: { model.settings.workIntervalMinutes },
+                        set: { model.setWorkIntervalMinutes($0) }
+                    ), in: AppSettings.workIntervalRange)
+                    Stepper("Break duration: \(model.settings.breakDurationSeconds) sec", value: Binding(
+                        get: { model.settings.breakDurationSeconds },
+                        set: { model.setBreakDurationSeconds($0) }
+                    ), in: AppSettings.breakDurationRange)
                     Picker("Snooze duration", selection: Binding(
                         get: { model.settings.snoozeMinutes },
                         set: { model.setSnoozeMinutes($0) }

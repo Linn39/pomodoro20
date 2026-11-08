@@ -44,6 +44,7 @@ final class WatchReminderController: ObservableObject {
     @Published private(set) var state = ReminderState()
     @Published private(set) var hasSettings = false
     @Published private(set) var snoozeMinutes = AppSettings.defaultSnoozeMinutes
+    @Published private(set) var breakDurationSeconds = AppSettings.defaultBreakDurationSeconds
     @Published private(set) var authorizationStatus: UNAuthorizationStatus = .notDetermined
     @Published private(set) var now = Date()
     @Published private(set) var feedback: String?
@@ -69,6 +70,7 @@ final class WatchReminderController: ObservableObject {
             state = savedState
             hasSettings = true
             snoozeMinutes = settings.snoozeMinutes
+            breakDurationSeconds = settings.breakDurationSeconds
         }
     }
 
@@ -169,9 +171,15 @@ final class WatchReminderController: ObservableObject {
     private func receive(settings: AppSettings) {
         guard settings.validationErrors().isEmpty else { return }
         do { try SettingsStore.save(settings) } catch { return }
-        engine = ReminderEngine(settings: settings, state: engine?.state ?? ReminderState())
+        var currentState = engine?.state ?? ReminderState()
+        if engine?.settings.workIntervalMinutes != settings.workIntervalMinutes,
+           case .working = currentState.phase {
+            currentState.phase = .working(due: Date().addingTimeInterval(TimeInterval(settings.workIntervalMinutes * 60)))
+        }
+        engine = ReminderEngine(settings: settings, state: currentState)
         hasSettings = true
         snoozeMinutes = settings.snoozeMinutes
+        breakDurationSeconds = settings.breakDurationSeconds
         delivery.configure(snoozeMinutes: settings.snoozeMinutes)
         refresh()
     }

@@ -25,7 +25,7 @@ struct ReminderEngine {
             state = ReminderState()
             if let current {
                 state.window = current
-                state.phase = .working(due: current.start.addingTimeInterval(20 * 60))
+                state.phase = .working(due: current.start.addingTimeInterval(TimeInterval(settings.workIntervalMinutes * 60)))
                 events.append(ReminderEvent(kind: .windowStarted, date: current.start))
             }
         }
@@ -54,10 +54,10 @@ struct ReminderEngine {
                 if retry == 0 {
                     state.phase = .waitingForRetry(due: expiration)
                 } else {
-                    state.phase = .working(due: expiration.addingTimeInterval(20 * 60))
+                    state.phase = .working(due: expiration.addingTimeInterval(TimeInterval(settings.workIntervalMinutes * 60)))
                 }
             case .breaking(let end):
-                state.phase = .working(due: end.addingTimeInterval(20 * 60))
+                state.phase = .working(due: end.addingTimeInterval(TimeInterval(settings.workIntervalMinutes * 60)))
                 events.append(ReminderEvent(kind: .breakEnded, date: end))
             case .inactive: return events
             }
@@ -73,7 +73,7 @@ struct ReminderEngine {
               state.window?.contains(now) == true,
               now < due.addingTimeInterval(Self.promptLifetime),
               forPromptDue == nil || forPromptDue == due else { return false }
-        state.phase = .breaking(end: now.addingTimeInterval(20))
+        state.phase = .breaking(end: now.addingTimeInterval(TimeInterval(settings.breakDurationSeconds)))
         return true
     }
 

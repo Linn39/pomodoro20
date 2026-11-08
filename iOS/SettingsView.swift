@@ -155,14 +155,14 @@ struct SettingsView: View {
                 }
 
                 Section("Reminders") {
-                    Stepper("Work interval: \(model.settings.workIntervalMinutes) min", value: Binding(
+                    DurationWheelPicker(title: "Work interval", total: Binding(
                         get: { model.settings.workIntervalMinutes },
                         set: { model.setWorkIntervalMinutes($0) }
-                    ), in: AppSettings.workIntervalRange)
-                    Stepper("Break duration: \(model.settings.breakDurationSeconds) sec", value: Binding(
+                    ), range: AppSettings.workIntervalRange, majorUnit: "hours", minorUnit: "minutes")
+                    DurationWheelPicker(title: "Break duration", total: Binding(
                         get: { model.settings.breakDurationSeconds },
                         set: { model.setBreakDurationSeconds($0) }
-                    ), in: AppSettings.breakDurationRange)
+                    ), range: AppSettings.breakDurationRange, majorUnit: "minutes", minorUnit: "seconds")
                     Picker("Snooze duration", selection: Binding(
                         get: { model.settings.snoozeMinutes },
                         set: { model.setSnoozeMinutes($0) }
@@ -214,6 +214,57 @@ struct SettingsView: View {
         let message = model.errorMessage ?? "Could not save this plan."
         model.errorMessage = nil
         return message
+    }
+}
+
+private struct DurationWheelPicker: View {
+    let title: String
+    @Binding var total: Int
+    let range: ClosedRange<Int>
+    let majorUnit: String
+    let minorUnit: String
+
+    private var major: Int { total / 60 }
+    private var minor: Int { total % 60 }
+
+    private var minorRange: ClosedRange<Int> {
+        let lower = major == range.lowerBound / 60 ? range.lowerBound % 60 : 0
+        let upper = major == range.upperBound / 60 ? range.upperBound % 60 : 59
+        return lower...upper
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title)
+            HStack(spacing: 0) {
+                wheel(title: "\(title) \(majorUnit)", selection: Binding(
+                    get: { major },
+                    set: { total = min(max($0 * 60 + minor, range.lowerBound), range.upperBound) }
+                ), values: (range.lowerBound / 60)...(range.upperBound / 60), unit: majorUnit)
+
+                wheel(title: "\(title) \(minorUnit)", selection: Binding(
+                    get: { minor },
+                    set: { total = major * 60 + $0 }
+                ), values: minorRange, unit: minorUnit)
+            }
+        }
+    }
+
+    private func wheel(title: String, selection: Binding<Int>, values: ClosedRange<Int>, unit: String) -> some View {
+        VStack(spacing: 0) {
+            Picker(title, selection: selection) {
+                ForEach(values, id: \.self) { value in
+                    Text(value.formatted(.number.precision(.integerLength(2)))).tag(value)
+                }
+            }
+            .pickerStyle(.wheel)
+            .frame(height: 120)
+            .clipped()
+            Text(unit)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
